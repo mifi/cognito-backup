@@ -16,6 +16,7 @@ cognito-backup backup-users <user-pool-id> <options>
 ```
 cognito-backup backup-users eu-west-1_1_12345
 cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json
+cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output
 ```
 
 ## TODO
