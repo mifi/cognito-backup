@@ -9,7 +9,8 @@ npm install -g cognito-backup
 
 ## Usage
 ```
-cognito-backup backup-users <user-pool-id> <options>
+cognito-backup backup-users <user-pool-id> <options>  Backup all users in a single user pool
+cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
 ```
 
 ## Examples
@@ -20,6 +21,4 @@ cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir outpu
 ```
 
 ## TODO
-```
 - Implement restore
-```
