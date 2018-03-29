@@ -18,11 +18,10 @@ const cli = meow(`
       $ cognito-backup backup-users <user-pool-id> <options>  Backup all users in a single user pool
       $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
 
-      AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+      AWS_ACCESS_KEY_ID , AWS_SECRET_ACCESS_KEY and AWS_REGION (optional for assume role: AWS_SESSION_TOKEN)
       is specified in env variables or ~/.aws/credentials
 
     Options
-      --region AWS region
       --file File name to export single pool users to (defaults to user-pool-id.json)
       --dir Path to export all pools, all users to (defaults to current dir)
 `);
@@ -43,7 +42,6 @@ bluebird.resolve(method.call(undefined, cli))
 
 function backupUsersCli(cli) {
   const userPoolId = cli.input[1];
-  const region = cli.flags.region;
   const file = cli.flags.file;
   const file2 = file || sanitizeFilename(getFilename(userPoolId));
 
@@ -52,19 +50,18 @@ function backupUsersCli(cli) {
     cli.showHelp();
   }
 
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider();
 
   return backupUsers(cognitoIsp, userPoolId, file2);
 }
 
 function backupAllUsersCli(cli) {
-  const region = cli.flags.region;
   const dir = cli.flags.dir || '.';
 
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider();
 
   return mkdirp(dir)
-  .then(() => bluebird.mapSeries(listUserPools(region), userPoolId => {
+  .then(() => bluebird.mapSeries(listUserPools(), userPoolId => {
     const file = path.join(dir, getFilename(userPoolId));
     console.error(`Exporting ${userPoolId} to ${file}`);
     return backupUsers(cognitoIsp, userPoolId, file);
@@ -75,8 +72,8 @@ function getFilename(userPoolId) {
   return `${userPoolId}.json`;
 }
 
-function listUserPools(region) {
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+function listUserPools() {
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider();
 
   return cognitoIsp.listUserPools({ MaxResults: 60 }).promise()
     .then(data => {
