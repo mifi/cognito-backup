@@ -18,8 +18,8 @@ cognito-backup backup-all-users <options>  Backup all users in all user pools fo
 ## Examples
 ```
 cognito-backup backup-users eu-west-1_1_12345
-cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json
-cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output
+cognito-backup backup-users eu-west-1_1_12345 --file mypool.json
+cognito-backup backup-all-users eu-west-1_1_12345 --dir output
 
 # Nominate region if not set in environment variable or ~/.aws/credentials
 AWS_region=ap-southeast-2 cognito-backup backup-all-users ap-southeast-2_123456
