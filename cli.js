@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 'use strict';
 
 const meow = require('meow');
@@ -13,23 +14,27 @@ const debug = require('debug')('cognito-backup');
 const mkdirp = bluebird.promisify(require('mkdirp'));
 const assert = require('assert');
 
+const readFile = bluebird.promisify(fs.readFile);
+
 const cli = meow(`
     Usage
-      $ cognito-backup backup-users <user-pool-id> <options>  Backup all users in a single user pool
+      $ cognito-backup backup-users <user-pool-id> <options>  Backup/export all users in a single user pool
       $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
+      $ cognito-backup restore-users <user-pool-id> <temp-password>  Restore/import users to a single user pool
 
-      AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
-      is specified in env variables or ~/.aws/credentials
+      AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
+      can be specified in env variables or ~/.aws/credentials
 
     Options
       --region AWS region
-      --file File name to export single pool users to (defaults to user-pool-id.json)
+      --file File name to export/import single pool users to (defaults to user-pool-id.json)
       --dir Path to export all pools, all users to (defaults to current dir)
 `);
 
 const methods = {
   'backup-users': backupUsersCli,
   'backup-all-users': backupAllUsersCli,
+  'restore-users': restore,
 };
 
 const method = methods[cli.input[0]] || cli.showHelp();
@@ -113,4 +118,48 @@ function backupUsers(cognitoIsp, userPoolId, file) {
       return streamToPromise(stringify);
     })
     .finally(() => writeStream.end());
+}
+
+function restore(cli) {
+  const region = cli.flags.region;
+  const userPoolId = cli.input[1];
+  const tempPassword = cli.input[2];
+  const file = cli.flags.file
+  const file2 = file || sanitizeFilename(getFilename(userPoolId));
+
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+
+  if (!userPoolId) {
+    console.error('user-pool-id is required');
+    cli.showHelp();
+  }
+
+  if (!tempPassword) {
+    console.error('temp-password is required');
+    cli.showHelp();
+  }
+
+  // TODO make streamable
+  readFile(file2, 'utf8')
+    .then((data) => {
+      const users = JSON.parse(data);
+
+      return bluebird.mapSeries(users, (user) => {
+        // sub is non-writable attribute
+        const attributes = user.Attributes.filter(a => a.Name !== 'sub');
+
+        const params = {
+          UserPoolId: userPoolId,
+          Username: user.Username,
+          DesiredDeliveryMediums: [],
+          MessageAction: 'SUPPRESS',
+          ForceAliasCreation: false,
+          TemporaryPassword: tempPassword,
+          UserAttributes: attributes,
+        };
+
+        return cognitoIsp.adminCreateUser(params).promise()
+          .then(data => console.log(data));
+      });
+    });
 }

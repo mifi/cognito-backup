@@ -1,6 +1,6 @@
 # cognito-backup 👫→💾
 Amazon doesn't have any way of backing up their AWS Cognito User Pools.
-cognito-backup is a CLI for backing up the data. <b>Note: AWS has no way of extracting the passwords of your users so you need to store these separately 😵</b>
+cognito-backup is a CLI for backing up the data, and can also restore afterwards. <b>Note: AWS has no way of extracting the passwords of your users so you need to store these separately 😵</b>
 
 
 
@@ -20,7 +20,5 @@ cognito-backup backup-all-users <options>  Backup all users in all user pools fo
 cognito-backup backup-users eu-west-1_1_12345
 cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json
 cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output
+cognito-backup restore-users eu-west-1_12345 Abcd.1234 --file eu-west-1_12345.json
 ```
-
-## TODO
-- Implement restore
