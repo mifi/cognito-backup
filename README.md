@@ -4,6 +4,10 @@ cognito-backup is a CLI for backing up the data, and can also restore afterwards
 
 
 
+## Requirements
+
+Requires node 8 or newer
+
 ## Install
 ```
 npm install -g cognito-backup

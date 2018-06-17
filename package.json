@@ -23,12 +23,13 @@
     "cognito-backup": "cli.js"
   },
   "engines": {
-    "node": ">=4"
+    "node": ">=8"
   },
   "dependencies": {
     "JSONStream": "^1.2.1",
     "aws-sdk": "^2.6.12",
     "bluebird": "^3.4.6",
+    "bottleneck": "^2.5.0",
     "debug": "^2.2.0",
     "meow": "^3.7.0",
     "mkdirp": "^0.5.1",

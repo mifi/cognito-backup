@@ -13,6 +13,7 @@ const streamToPromise = require('stream-to-promise');
 const debug = require('debug')('cognito-backup');
 const mkdirp = bluebird.promisify(require('mkdirp'));
 const assert = require('assert');
+const Bottleneck = require('bottleneck');
 
 const readFile = bluebird.promisify(fs.readFile);
 
@@ -111,12 +112,17 @@ function restore(cli) {
     cli.showHelp();
   }
 
+  // AWS limits to 10 per second, so be safe and do 5 per second
+  // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
+  const limiter = new Bottleneck({ minTime: 200 });
+
+
   // TODO make streamable
   readFile(file2, 'utf8')
     .then((data) => {
       const users = JSON.parse(data);
 
-      return bluebird.mapSeries(users, (user) => {
+      return bluebird.mapSeries(users, async (user) => {
         // sub is non-writable attribute
         const attributes = user.Attributes.filter(a => a.Name !== 'sub');
 
@@ -126,12 +132,13 @@ function restore(cli) {
           DesiredDeliveryMediums: [],
           MessageAction: 'SUPPRESS',
           ForceAliasCreation: false,
-          TemporaryPassword: tempPassword,
+          TemporaryPassword: tempPassword.toString(),
           UserAttributes: attributes,
         };
 
-        return cognitoIsp.adminCreateUser(params).promise()
-          .then(response => console.log(response));
+        const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
+        const response = await wrapped();
+        console.log(response);
       });
     });
 }
