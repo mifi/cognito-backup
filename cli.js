@@ -112,9 +112,9 @@ function restore(cli) {
     cli.showHelp();
   }
 
-  // AWS limits to 10 per second, so be safe and do 5 per second
+  // AWS limits to 10 per second, so be safe and do 4 per second
   // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
-  const limiter = new Bottleneck({ minTime: 200 });
+  const limiter = new Bottleneck({ minTime: 250 });
 
 
   // TODO make streamable
