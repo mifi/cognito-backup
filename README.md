@@ -22,7 +22,7 @@ cognito-backup backup-all-users <options>  Backup all users in all user pools fo
 ## Examples
 ```
 cognito-backup backup-users eu-west-1_1_12345
-cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json
-cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output
+cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json --profile default
+cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output  --profile myprofile
 cognito-backup restore-users eu-west-1_12345 Abcd.1234 --file eu-west-1_12345.json
 ```

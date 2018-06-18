@@ -34,6 +34,13 @@ function listUserPools(region) {
     });
 }
 
+function setProfile(flags) {
+  var profile = flags['profile'] || 'default'
+  var credentials = new AWS.SharedIniFileCredentials({profile: profile});
+
+  AWS.config.credentials = credentials;
+}
+
 function backupUsers(cognitoIsp, userPoolId, file) {
   const writeStream = fs.createWriteStream(file);
   const stringify = JSONStream.stringify();
@@ -75,6 +82,7 @@ function backupUsersCli(cli) {
     cli.showHelp();
   }
 
+  setProfile(cli.flags)
   const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
 
   return backupUsers(cognitoIsp, userPoolId, file2);
@@ -84,6 +92,7 @@ function backupAllUsersCli(cli) {
   const { region } = cli.flags;
   const dir = cli.flags.dir || '.';
 
+  setProfile(cli.flags)
   const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
 
   return mkdirp(dir)
@@ -100,6 +109,7 @@ function restore(cli) {
   const tempPassword = cli.input[2];
   const file2 = file || sanitizeFilename(getFilename(userPoolId));
 
+  setProfile(cli.flags)
   const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
 
   if (!userPoolId) {
@@ -155,6 +165,7 @@ const cli = meow(`
 
     Options
       --region AWS region
+      --profile AWS profile (defaults to default profile)
       --file File name to export/import single pool users to (defaults to user-pool-id.json)
       --dir Path to export all pools, all users to (defaults to current dir)
 `);
