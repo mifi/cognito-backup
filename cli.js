@@ -157,6 +157,7 @@ const cli = meow(`
       --region AWS region
       --file File name to export/import single pool users to (defaults to user-pool-id.json)
       --dir Path to export all pools, all users to (defaults to current dir)
+      --profile utilize named profile from .aws/credentials file
 `);
 
 const methods = {
@@ -166,6 +167,10 @@ const methods = {
 };
 
 const method = methods[cli.input[0]] || cli.showHelp();
+
+if (cli.flags.profile) {
+  AWS.config.credentials = new AWS.SharedIniFileCredentials({ profile: cli.flags.profile });
+}
 
 bluebird.resolve(method.call(undefined, cli))
   .catch((err) => {
