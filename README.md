@@ -31,3 +31,7 @@ Run `cognito-backup` for complete usage.
 `cognito-backup backup-users eu-west-1_1_12345 --region eu-west-1 --file mypool.json`  
 `cognito-backup backup-all-users eu-west-1_1_12345 --region eu-west-1 --dir output`  
 `cognito-backup restore-users eu-west-1_12345 Abcd.1234 --file eu-west-1_12345.json`
+
+## Related
+
+- https://github.com/mifi/dynamodump
