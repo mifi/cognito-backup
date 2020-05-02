@@ -4,7 +4,9 @@
   "description": "CLI for backing up and restoring AWS Cogntito User Pools",
   "main": "cli.js",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "snyk-protect": "snyk protect",
+    "prepare": "yarn run snyk-protect"
   },
   "repository": {
     "type": "git",
@@ -34,11 +36,13 @@
     "meow": "^3.7.0",
     "mkdirp": "^0.5.1",
     "sanitize-filename": "^1.6.1",
-    "stream-to-promise": "^2.2.0"
+    "stream-to-promise": "^2.2.0",
+    "snyk": "^1.316.2"
   },
   "devDependencies": {
     "eslint": "^4.19.1",
     "eslint-config-airbnb": "^16.1.0",
     "eslint-plugin-import": "^2.12.0"
-  }
+  },
+  "snyk": true
 }
