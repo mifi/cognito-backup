@@ -147,6 +147,19 @@ function restore(cli) {
         const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
         const response = await wrapped();
         console.log(response);
+
+        if (user.Groups) {
+          user.Groups.forEach(async (group) => {
+            const iparams = {
+              UserPoolId: userPoolId,
+              Username: user.Username,
+              GroupName: group,
+            };
+            const iwrapped = limiter.wrap(async () => cognitoIsp.adminAddUserToGroup(iparams).promise());
+            const iresponse = await iwrapped();
+            console.log(iresponse);
+          });
+        }
       });
     });
 }
