@@ -45,14 +45,22 @@ function backupUsers(cognitoIsp, userPoolId, file) {
     debug(`Fetching users - page: ${params.PaginationToken || 'first'}`);
     return bluebird.resolve(cognitoIsp.listUsers(params).promise())
       .then((data) => {
-        data.Users.forEach(item => stringify.write(item));
+        const promises = data.Users.map((item) => {
+          const itemCopy = item;
+          return cognitoIsp.adminListGroupsForUser({
+            UserPoolId: userPoolId, Username: item.Username,
+          }).promise().then((gdata) => {
+            itemCopy.Groups = gdata.Groups.map(group => group.GroupName);
+            stringify.write(itemCopy);
+          });
+        });
 
         if (data.PaginationToken !== undefined) {
           params.PaginationToken = data.PaginationToken;
-          return page();
+          promises.push(page());
         }
 
-        return undefined;
+        return bluebird.all(promises);
       });
   };
 
