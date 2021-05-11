@@ -32,7 +32,7 @@
     "bottleneck": "^2.5.0",
     "debug": "^2.2.0",
     "meow": "^3.7.0",
-    "mkdirp": "^0.5.1",
+    "mkdirp": "^1.0.0",
     "sanitize-filename": "^1.6.1",
     "stream-to-promise": "^2.2.0"
   },
