@@ -11,12 +11,11 @@ const sanitizeFilename = require('sanitize-filename');
 const JSONStream = require('JSONStream');
 const streamToPromise = require('stream-to-promise');
 const debug = require('debug')('cognito-backup');
-const mkdirp = bluebird.promisify(require('mkdirp'));
+const mkdirp = require('mkdirp');
 const assert = require('assert');
 const Bottleneck = require('bottleneck');
 
 const readFile = bluebird.promisify(fs.readFile);
-
 
 function getFilename(userPoolId) {
   return `${userPoolId}.json`;
@@ -40,19 +39,29 @@ function backupUsers(cognitoIsp, userPoolId, file) {
 
   stringify.pipe(writeStream);
 
+  const limiter = new Bottleneck({ minTime: 25 });
+
+  const listGroupsForUser = (userPoolId, item) => {
+    return cognitoIsp.adminListGroupsForUser({
+      UserPoolId: userPoolId,
+      Username: item.Username,
+    }).promise().then((gdata) => {
+      item.Groups = gdata.Groups.map(group => group.GroupName);
+      stringify.write(item);
+    });
+  }
+
+  // AWS limits to 50 API calls for AdminListGroupsForUser per second, so be safe and do 40 per second
+  // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html#category_operations
+  const listGroupsForUserLimited = limiter.wrap(listGroupsForUser);
+
   const params = { UserPoolId: userPoolId };
   const page = () => {
     debug(`Fetching users - page: ${params.PaginationToken || 'first'}`);
     return bluebird.resolve(cognitoIsp.listUsers(params).promise())
       .then((data) => {
         const promises = data.Users.map((item) => {
-          const itemCopy = item;
-          return cognitoIsp.adminListGroupsForUser({
-            UserPoolId: userPoolId, Username: item.Username,
-          }).promise().then((gdata) => {
-            itemCopy.Groups = gdata.Groups.map(group => group.GroupName);
-            stringify.write(itemCopy);
-          });
+          return listGroupsForUserLimited(userPoolId, item)
         });
 
         if (data.PaginationToken !== undefined) {
