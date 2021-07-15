@@ -11,12 +11,11 @@ const sanitizeFilename = require('sanitize-filename');
 const JSONStream = require('JSONStream');
 const streamToPromise = require('stream-to-promise');
 const debug = require('debug')('cognito-backup');
-const mkdirp = bluebird.promisify(require('mkdirp'));
+const mkdirp = require('mkdirp');
 const assert = require('assert');
 const Bottleneck = require('bottleneck');
 
 const readFile = bluebird.promisify(fs.readFile);
-
 
 function getFilename(userPoolId) {
   return `${userPoolId}.json`;
@@ -40,15 +39,64 @@ function backupUsers(cognitoIsp, userPoolId, file) {
 
   stringify.pipe(writeStream);
 
+  const limiter = new Bottleneck({ minTime: 25 });
+
+  const listGroupsForUser = (userPoolId, item) => {
+    return cognitoIsp.adminListGroupsForUser({
+      UserPoolId: userPoolId,
+      Username: item.Username,
+    }).promise().then((gdata) => {
+      item.Groups = gdata.Groups.map(group => group.GroupName);
+      stringify.write(item);
+    });
+  }
+
+  // AWS limits to 50 API calls for AdminListGroupsForUser per second, so be safe and do 40 per second
+  // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html#category_operations
+  const listGroupsForUserLimited = limiter.wrap(listGroupsForUser);
+
   const params = { UserPoolId: userPoolId };
   const page = () => {
     debug(`Fetching users - page: ${params.PaginationToken || 'first'}`);
     return bluebird.resolve(cognitoIsp.listUsers(params).promise())
       .then((data) => {
-        data.Users.forEach(item => stringify.write(item));
+        const promises = data.Users.map((item) => {
+          return listGroupsForUserLimited(userPoolId, item)
+        });
 
         if (data.PaginationToken !== undefined) {
           params.PaginationToken = data.PaginationToken;
+          promises.push(page());
+        }
+
+        return bluebird.all(promises);
+      });
+  };
+
+  return page()
+    .finally(() => {
+      stringify.end();
+      return streamToPromise(stringify);
+    })
+    .finally(() => writeStream.end());
+}
+
+function backupGroups(cognitoIsp, userPoolId, file) {
+  const writeStream = fs.createWriteStream(file);
+  const stringify = JSONStream.stringify();
+
+  stringify.pipe(writeStream);
+
+  const params = { UserPoolId: userPoolId, Limit: 1 };
+  const page = () => {
+    debug(`Fetching groups - page: ${params.PaginationToken || 'first'}`);
+    return bluebird.resolve(cognitoIsp.listGroups(params).promise())
+      .then((data) => {
+        data.Groups.forEach(item => stringify.write(item));
+
+        if (data.NextToken !== undefined) {
+          console.log('Paginating!');
+          params.NextToken = data.NextToken;
           return page();
         }
 
@@ -78,6 +126,21 @@ function backupUsersCli(cli) {
   const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
 
   return backupUsers(cognitoIsp, userPoolId, file2);
+}
+
+function backupGroupsCli(cli) {
+  const userPoolId = cli.input[1];
+  const { region, file } = cli.flags;
+  const file2 = file || sanitizeFilename(getFilename(userPoolId + '_groups'));
+
+  if (!userPoolId) {
+    console.error('user-pool-id is required');
+    cli.showHelp();
+  }
+
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+
+  return backupGroups(cognitoIsp, userPoolId, file2);
 }
 
 function backupAllUsersCli(cli) {
@@ -139,6 +202,57 @@ function restore(cli) {
         const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
         const response = await wrapped();
         console.log(response);
+
+        if (user.Groups) {
+          user.Groups.forEach(async (group) => {
+            const iparams = {
+              UserPoolId: userPoolId,
+              Username: user.Username,
+              GroupName: group,
+            };
+            const iwrapped = limiter.wrap(async () => cognitoIsp.adminAddUserToGroup(iparams).promise());
+            const iresponse = await iwrapped();
+            console.log(iresponse);
+          });
+        }
+      });
+    });
+}
+
+function restoreGroups(cli) {
+  const { region, file } = cli.flags;
+  const userPoolId = cli.input[1];
+  const file2 = file || sanitizeFilename(getFilename(userPoolId + '_groups'));
+
+  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+
+  if (!userPoolId) {
+    console.error('user-pool-id is required');
+    cli.showHelp();
+  }
+
+  // AWS limits to 10 per second, so be safe and do 4 per second
+  // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
+  const limiter = new Bottleneck({ minTime: 250 });
+
+
+  // TODO make streamable
+  readFile(file2, 'utf8')
+    .then((data) => {
+      const groups = JSON.parse(data);
+
+      return bluebird.mapSeries(groups, async (group) => {
+        const params = {
+          UserPoolId: userPoolId,
+          GroupName: group.GroupName,
+          Description: group.Description,
+          Precedence: group.Precedence,
+          RoleArn: group.RoleArn,
+        };
+
+        const wrapped = limiter.wrap(async () => cognitoIsp.createGroup(params).promise());
+        const response = await wrapped();
+        console.log(response);
       });
     });
 }
@@ -147,8 +261,10 @@ function restore(cli) {
 const cli = meow(`
     Usage
       $ cognito-backup backup-users <user-pool-id> <options>  Backup/export all users in a single user pool
+      $ cognito-backup backup-groups <user-pool-id> <options>  Backup/export all groups in a single user pool
       $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
       $ cognito-backup restore-users <user-pool-id> <temp-password>  Restore/import users to a single user pool
+      $ cognito-backup restore-groups <user-pool-id> Restore/import groups to a single user pool
 
       AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
       can be specified in env variables or ~/.aws/credentials
@@ -162,8 +278,10 @@ const cli = meow(`
 
 const methods = {
   'backup-users': backupUsersCli,
+  'backup-groups': backupGroupsCli,
   'backup-all-users': backupAllUsersCli,
   'restore-users': restore,
+  'restore-groups': restoreGroups,
 };
 
 const method = methods[cli.input[0]] || cli.showHelp();
