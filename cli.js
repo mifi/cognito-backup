@@ -112,35 +112,39 @@ function restore(cli) {
     cli.showHelp();
   }
 
-  // AWS limits to 10 per second, so be safe and do 4 per second
-  // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
-  const limiter = new Bottleneck({ minTime: 250 });
+  cognitoIsp.describeUserPool({ UserPoolId: userPoolId }, (err, data) => {
+    const useEmail = err ? false : data.UserPool.UsernameAttributes.includes('email');
+
+    // AWS limits to 10 per second, so be safe and do 4 per second
+    // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
+    const limiter = new Bottleneck({ minTime: 250 });
 
 
-  // TODO make streamable
-  readFile(file2, 'utf8')
-    .then((data) => {
-      const users = JSON.parse(data);
+    // TODO make streamable
+    readFile(file2, 'utf8')
+      .then((data) => {
+        const users = JSON.parse(data);
 
-      return bluebird.mapSeries(users, async (user) => {
-        // sub is non-writable attribute
-        const attributes = user.Attributes.filter(a => a.Name !== 'sub');
+        return bluebird.mapSeries(users, async (user) => {
+          // sub is non-writable attribute
+          const attributes = user.Attributes.filter(a => a.Name !== 'sub');
 
-        const params = {
-          UserPoolId: userPoolId,
-          Username: user.Username,
-          DesiredDeliveryMediums: [],
-          MessageAction: 'SUPPRESS',
-          ForceAliasCreation: false,
-          TemporaryPassword: tempPassword.toString(),
-          UserAttributes: attributes,
-        };
+          const params = {
+            UserPoolId: userPoolId,
+            Username: useEmail ? user.Attributes.find(item => item.Name === "email").Value : user.Username,
+            DesiredDeliveryMediums: [],
+            MessageAction: 'SUPPRESS',
+            ForceAliasCreation: false,
+            TemporaryPassword: tempPassword.toString(),
+            UserAttributes: attributes,
+          };
 
-        const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
-        const response = await wrapped();
-        console.log(response);
+          const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
+          const response = await wrapped();
+          console.log(response);
+        });
       });
-    });
+  });
 }
 
 
