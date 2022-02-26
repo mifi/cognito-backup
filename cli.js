@@ -20,7 +20,8 @@ const debug = Debug('cognito-backup');
 const pipeline = promisify(pipelineCb);
 
 
-const cli = meow(`
+const cli = meow(
+  `
   Usage
     $ cognito-backup backup-users <user-pool-id> <options>  Backup/export all users in a single user pool
     $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
@@ -41,8 +42,9 @@ const cli = meow(`
       stackTrace: {
         type: 'boolean',
       },
-    }
-  });
+    },
+  },
+);
 
 const { region } = cli.flags;
 
@@ -58,11 +60,11 @@ function getCognitoISP() {
 async function listUserPools() {
   const cognitoIsp = getCognitoISP();
 
-  const data = await cognitoIsp.listUserPools({ MaxResults: 60 }).promise()
+  const data = await cognitoIsp.listUserPools({ MaxResults: 60 }).promise();
   assert(!data.NextToken, 'More than 60 user pools is not yet supported');
   const userPools = data.UserPools;
   debug({ userPools });
-  return userPools.map(p => p.Id);
+  return userPools.map((p) => p.Id);
 }
 
 async function backupUsers(cognitoIsp, userPoolId, file) {
@@ -74,7 +76,7 @@ async function backupUsers(cognitoIsp, userPoolId, file) {
   async function page() {
     debug(`Fetching users - page: ${params.PaginationToken || 'first'}`);
     const data = await cognitoIsp.listUsers(params).promise();
-    data.Users.forEach(item => stringify.write(item));
+    data.Users.forEach((item) => stringify.write(item));
 
     if (data.PaginationToken !== undefined) {
       params.PaginationToken = data.PaginationToken;
@@ -139,12 +141,12 @@ async function restore() {
   const limiter = new Bottleneck({ minTime: 250 });
 
   // TODO make streamable
-  const data = await readFile(file2, 'utf8')
+  const data = await readFile(file2, 'utf8');
   const users = JSON.parse(data);
 
   return pMap(users, async (user) => {
     // sub is non-writable attribute
-    const attributes = user.Attributes.filter(a => a.Name !== 'sub');
+    const attributes = user.Attributes.filter((attribute) => attribute.Name !== 'sub');
 
     const params = {
       UserPoolId: userPoolId,
@@ -175,7 +177,7 @@ if (cli.flags.profile) {
 }
 
 try {
-  await method()
+  await method();
 } catch (err) {
   if (cli.flags.stackTrace) {
     console.error('Error:', err);
