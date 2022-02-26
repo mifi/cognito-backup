@@ -9,6 +9,7 @@
   },
   "rules": {
     "no-multiple-empty-lines": ["error", { "max": 2, "maxBOF": 0, "maxEOF": 0 }],
-    "no-console": 0
+    "no-console": 0,
+    "max-len": 0
   }
 }
