@@ -2,11 +2,9 @@
 Amazon doesn't have any way of backing up their AWS Cognito User Pools and Groups.
 So in my frustrating times working with AWS Cognito, I wrote this tool. `cognito-backup` is a simple CLI for backing up the user data, and can also restore afterwards. <b>Note: AWS has no way of extracting the passwords of your users so you need to store these separately 😵</b>
 
-
-
 ## Requirements
 
-Requires node 8 or newer
+Requires node 12 or newer
 
 ## Install
 ```
