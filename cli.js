@@ -1,73 +1,96 @@
 #!/usr/bin/env node
 
-'use strict';
+import { promisify } from 'util';
+import meow from 'meow';
+import AWS from 'aws-sdk';
+import fs from 'fs';
+import { readFile } from 'fs/promises';
+import path from 'path';
+import sanitizeFilename from 'sanitize-filename';
+import JSONStream from 'JSONStream';
+import Debug from 'debug';
+import mkdirp from 'mkdirp';
+import assert from 'assert';
+import Bottleneck from 'bottleneck';
+import { pipeline as pipelineCb } from 'stream';
+import pMap from 'p-map';
 
-const meow = require('meow');
-const AWS = require('aws-sdk');
-const bluebird = require('bluebird');
-const fs = require('fs');
-const path = require('path');
-const sanitizeFilename = require('sanitize-filename');
-const JSONStream = require('JSONStream');
-const streamToPromise = require('stream-to-promise');
-const debug = require('debug')('cognito-backup');
-const mkdirp = bluebird.promisify(require('mkdirp'));
-const assert = require('assert');
-const Bottleneck = require('bottleneck');
+const debug = Debug('cognito-backup');
 
-const readFile = bluebird.promisify(fs.readFile);
+const pipeline = promisify(pipelineCb);
+
+
+const cli = meow(`
+  Usage
+    $ cognito-backup backup-users <user-pool-id> <options>  Backup/export all users in a single user pool
+    $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
+    $ cognito-backup restore-users <user-pool-id> <temp-password>  Restore/import users to a single user pool
+
+    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
+    can be specified in env variables or ~/.aws/credentials
+
+  Options
+    --region AWS region
+    --file File name to export/import single pool users to (defaults to user-pool-id.json)
+    --dir Path to export all pools, all users to (defaults to current dir)
+    --profile utilize named profile from .aws/credentials file
+    --stack-trace Log stack trace upon error`,
+  {
+    importMeta: import.meta,
+    flags: {
+      stackTrace: {
+        type: 'boolean',
+      },
+    }
+  });
+
+const { region } = cli.flags;
 
 
 function getFilename(userPoolId) {
   return `${userPoolId}.json`;
 }
 
-function listUserPools(region) {
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
-
-  return cognitoIsp.listUserPools({ MaxResults: 60 }).promise()
-    .then((data) => {
-      assert(!data.NextToken, 'More than 60 user pools is not yet supported');
-      const userPools = data.UserPools;
-      debug({ userPools });
-      return userPools.map(p => p.Id);
-    });
+function getCognitoISP() {
+  return new AWS.CognitoIdentityServiceProvider({ region });
 }
 
-function backupUsers(cognitoIsp, userPoolId, file) {
+async function listUserPools() {
+  const cognitoIsp = getCognitoISP();
+
+  const data = await cognitoIsp.listUserPools({ MaxResults: 60 }).promise()
+  assert(!data.NextToken, 'More than 60 user pools is not yet supported');
+  const userPools = data.UserPools;
+  debug({ userPools });
+  return userPools.map(p => p.Id);
+}
+
+async function backupUsers(cognitoIsp, userPoolId, file) {
   const writeStream = fs.createWriteStream(file);
   const stringify = JSONStream.stringify();
 
-  stringify.pipe(writeStream);
-
   const params = { UserPoolId: userPoolId };
-  const page = () => {
+
+  async function page() {
     debug(`Fetching users - page: ${params.PaginationToken || 'first'}`);
-    return bluebird.resolve(cognitoIsp.listUsers(params).promise())
-      .then((data) => {
-        data.Users.forEach(item => stringify.write(item));
+    const data = await cognitoIsp.listUsers(params).promise();
+    data.Users.forEach(item => stringify.write(item));
 
-        if (data.PaginationToken !== undefined) {
-          params.PaginationToken = data.PaginationToken;
-          return page();
-        }
+    if (data.PaginationToken !== undefined) {
+      params.PaginationToken = data.PaginationToken;
+      await page();
+    }
 
-        return undefined;
-      });
-  };
+    stringify.end();
+  }
 
-  return page()
-    .finally(() => {
-      stringify.end();
-      return streamToPromise(stringify);
-    })
-    .finally(() => writeStream.end());
+  page();
+  await pipeline(stringify, writeStream);
 }
 
-
-function backupUsersCli(cli) {
+async function backupUsersCli() {
   const userPoolId = cli.input[1];
-  const { region, file } = cli.flags;
+  const { file } = cli.flags;
   const file2 = file || sanitizeFilename(getFilename(userPoolId));
 
   if (!userPoolId) {
@@ -75,32 +98,31 @@ function backupUsersCli(cli) {
     cli.showHelp();
   }
 
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+  const cognitoIsp = getCognitoISP();
 
   return backupUsers(cognitoIsp, userPoolId, file2);
 }
 
-function backupAllUsersCli(cli) {
-  const { region } = cli.flags;
+async function backupAllUsersCli() {
   const dir = cli.flags.dir || '.';
 
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+  const cognitoIsp = getCognitoISP();
 
-  return mkdirp(dir)
-    .then(() => bluebird.mapSeries(listUserPools(region), (userPoolId) => {
-      const file = path.join(dir, getFilename(userPoolId));
-      console.error(`Exporting ${userPoolId} to ${file}`);
-      return backupUsers(cognitoIsp, userPoolId, file);
-    }));
+  await mkdirp(dir);
+  await pMap(await listUserPools(), (userPoolId) => {
+    const file = path.join(dir, getFilename(userPoolId));
+    console.error(`Exporting ${userPoolId} to ${file}`);
+    return backupUsers(cognitoIsp, userPoolId, file);
+  }, { concurrency: 1 });
 }
 
-function restore(cli) {
-  const { region, file } = cli.flags;
+async function restore() {
+  const { file } = cli.flags;
   const userPoolId = cli.input[1];
   const tempPassword = cli.input[2];
   const file2 = file || sanitizeFilename(getFilename(userPoolId));
 
-  const cognitoIsp = new AWS.CognitoIdentityServiceProvider({ region });
+  const cognitoIsp = getCognitoISP();
 
   if (!userPoolId) {
     console.error('user-pool-id is required');
@@ -116,49 +138,29 @@ function restore(cli) {
   // https://docs.aws.amazon.com/cognito/latest/developerguide/limits.html
   const limiter = new Bottleneck({ minTime: 250 });
 
-
   // TODO make streamable
-  readFile(file2, 'utf8')
-    .then((data) => {
-      const users = JSON.parse(data);
+  const data = await readFile(file2, 'utf8')
+  const users = JSON.parse(data);
 
-      return bluebird.mapSeries(users, async (user) => {
-        // sub is non-writable attribute
-        const attributes = user.Attributes.filter(a => a.Name !== 'sub');
+  return pMap(users, async (user) => {
+    // sub is non-writable attribute
+    const attributes = user.Attributes.filter(a => a.Name !== 'sub');
 
-        const params = {
-          UserPoolId: userPoolId,
-          Username: user.Username,
-          DesiredDeliveryMediums: [],
-          MessageAction: 'SUPPRESS',
-          ForceAliasCreation: false,
-          TemporaryPassword: tempPassword.toString(),
-          UserAttributes: attributes,
-        };
+    const params = {
+      UserPoolId: userPoolId,
+      Username: user.Username,
+      DesiredDeliveryMediums: [],
+      MessageAction: 'SUPPRESS',
+      ForceAliasCreation: false,
+      TemporaryPassword: tempPassword.toString(),
+      UserAttributes: attributes,
+    };
 
-        const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
-        const response = await wrapped();
-        console.log(response);
-      });
-    });
+    const wrapped = limiter.wrap(async () => cognitoIsp.adminCreateUser(params).promise());
+    const response = await wrapped();
+    console.log(response);
+  }, { concurrency: 1 });
 }
-
-
-const cli = meow(`
-    Usage
-      $ cognito-backup backup-users <user-pool-id> <options>  Backup/export all users in a single user pool
-      $ cognito-backup backup-all-users <options>  Backup all users in all user pools for this account
-      $ cognito-backup restore-users <user-pool-id> <temp-password>  Restore/import users to a single user pool
-
-      AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
-      can be specified in env variables or ~/.aws/credentials
-
-    Options
-      --region AWS region
-      --file File name to export/import single pool users to (defaults to user-pool-id.json)
-      --dir Path to export all pools, all users to (defaults to current dir)
-      --profile utilize named profile from .aws/credentials file
-`);
 
 const methods = {
   'backup-users': backupUsersCli,
@@ -172,8 +174,13 @@ if (cli.flags.profile) {
   AWS.config.credentials = new AWS.SharedIniFileCredentials({ profile: cli.flags.profile });
 }
 
-bluebird.resolve(method.call(undefined, cli))
-  .catch((err) => {
-    console.error(err.stack);
-    process.exit(1);
-  });
+try {
+  await method()
+} catch (err) {
+  if (cli.flags.stackTrace) {
+    console.error('Error:', err);
+  } else {
+    console.error('Error:', err.message);
+  }
+  process.exitCode = 1;
+}
