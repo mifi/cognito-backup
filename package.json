@@ -3,8 +3,10 @@
   "version": "2.1.1",
   "description": "CLI for backing up and restoring AWS Cogntito User Pools",
   "main": "cli.js",
+  "type": "module",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "exit 0"
   },
   "repository": {
     "type": "git",
@@ -13,7 +15,7 @@
   "author": {
     "name": "Mikael Finstad",
     "email": "finstaden@gmail.com",
-    "url": "mifi.no"
+    "url": "https://mifi.no"
   },
   "license": "MIT",
   "files": [
@@ -23,22 +25,21 @@
     "cognito-backup": "cli.js"
   },
   "engines": {
-    "node": ">=8"
+    "node": "12.20.0 || ^14.13.1 || >=16.0.0"
   },
   "dependencies": {
-    "JSONStream": "^1.2.1",
-    "aws-sdk": "^2.6.12",
-    "bluebird": "^3.4.6",
-    "bottleneck": "^2.5.0",
-    "debug": "^2.2.0",
-    "meow": "^3.7.0",
-    "mkdirp": "^1.0.0",
-    "sanitize-filename": "^1.6.1",
-    "stream-to-promise": "^2.2.0"
+    "JSONStream": "^1.3.5",
+    "aws-sdk": "^2.1082.0",
+    "bottleneck": "^2.19.5",
+    "debug": "^4.3.3",
+    "meow": "^10.1.2",
+    "mkdirp": "^1.0.4",
+    "p-map": "^5.3.0",
+    "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {
-    "eslint": "^4.19.1",
-    "eslint-config-airbnb": "^16.1.0",
-    "eslint-plugin-import": "^2.12.0"
+    "eslint": "^7.32.0 || ^8.2.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.25.2"
   }
 }
