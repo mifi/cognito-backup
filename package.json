@@ -4,7 +4,8 @@
   "description": "CLI for backing up and restoring AWS Cogntito User Pools",
   "main": "cli.js",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "exit 0"
   },
   "repository": {
     "type": "git",
@@ -13,7 +14,7 @@
   "author": {
     "name": "Mikael Finstad",
     "email": "finstaden@gmail.com",
-    "url": "mifi.no"
+    "url": "https://mifi.no"
   },
   "license": "MIT",
   "files": [
