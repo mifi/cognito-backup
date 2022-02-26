@@ -44,3 +44,4 @@ cognito-backup restore-groups eu-west-1_12345
 ## Related
 
 - https://github.com/mifi/dynamodump
+- https://github.com/rahulpsd18/cognito-backup-restore
