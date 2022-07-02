@@ -41,6 +41,13 @@ cognito-backup backup-groups eu-west-1_12345
 cognito-backup restore-groups eu-west-1_12345
 ```
 
+## Troubleshooting
+
+Enable verbose log output:
+```
+DEBUG=cognito-backup cognito-backup ...
+```
+
 ## Related
 
 - https://github.com/mifi/dynamodump
