@@ -51,7 +51,7 @@ const cli = meow(
   },
 );
 
-const { region, concurrency } = cli.flags;
+const { region, concurrency = 1 } = cli.flags;
 
 const config = {
   region,
