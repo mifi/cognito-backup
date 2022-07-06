@@ -39,7 +39,8 @@ const cli = meow(
     --file File name to export/import single pool users to (defaults to user-pool-id.json)
     --dir Path to export all pools, all users to (defaults to current dir)
     --profile utilize named profile from .aws/credentials file
-    --stack-trace Log stack trace upon error`,
+    --stack-trace Log stack trace upon error
+    --concurrency More will be faster, too many may cause throttling error`,
   {
     importMeta: import.meta,
     flags: {
@@ -50,7 +51,7 @@ const cli = meow(
   },
 );
 
-const { region } = cli.flags;
+const { region, concurrency } = cli.flags;
 
 const config = {
   region,
@@ -100,7 +101,7 @@ async function backupUsers(userPoolId, file) {
     const users = await pMap(data.Users, async (user) => {
       const groupNames = await getUserGroupNames(user);
       return { ...user, Groups: groupNames };
-    }, { concurrency: 1 });
+    }, { concurrency });
 
     users.forEach((item) => stringify.write(item));
 
@@ -226,7 +227,7 @@ async function restoreUsers() {
         debug('Added user', user.Username, 'to group', group);
       }, { concurrency: 1 });
     }
-  }, { concurrency: 1 });
+  }, { concurrency });
 }
 
 async function restoreGroups() {
@@ -253,7 +254,7 @@ async function restoreGroups() {
 
     const response = await cognitoIsp.send(new CreateGroupCommand(params));
     debug('Restored group', response?.Group.GroupName);
-  }, { concurrency: 1 });
+  }, { concurrency });
 }
 
 const methods = {
