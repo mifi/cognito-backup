@@ -47,6 +47,9 @@ const cli = meow(
       stackTrace: {
         type: 'boolean',
       },
+      concurrency: {
+        type: 'number',
+      },
     },
   },
 );
