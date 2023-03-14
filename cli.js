@@ -50,11 +50,14 @@ const cli = meow(
       concurrency: {
         type: 'number',
       },
+      verbose: {
+        type: 'boolean',
+      },
     },
   },
 );
 
-const { region, concurrency = 1 } = cli.flags;
+const { region, concurrency = 1, verbose = false } = cli.flags;
 
 const config = {
   region,
@@ -218,6 +221,12 @@ async function restoreUsers() {
 
     const response = await cognitoIsp.send(new AdminCreateUserCommand(params));
     debug('Restored user', response?.User?.Username);
+
+    if (verbose) {
+      const oldSub = user.Attributes.find((attribute) => attribute.Name === 'sub');
+      const newSub = response?.User.Attributes.find((attribute) => attribute.Name === 'sub');
+      console.log(`Restored user - oldSub: "${oldSub.Value}" newSub: "${newSub.Value}"`);
+    }
 
     if (user.Groups) {
       await pMap(user.Groups, async (group) => {
