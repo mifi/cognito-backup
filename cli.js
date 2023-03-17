@@ -224,8 +224,8 @@ async function restoreUsers() {
 
     if (verbose) {
       const oldSub = user.Attributes.find((attribute) => attribute.Name === 'sub');
-      const newSub = response?.User.Attributes.find((attribute) => attribute.Name === 'sub');
-      console.log(`Restored user - oldSub: "${oldSub.Value}" newSub: "${newSub.Value}"`);
+      const newSub = response.User.Attributes.find((attribute) => attribute.Name === 'sub');
+      console.log(`Restored user - oldSub: "${oldSub?.Value}" newSub: "${newSub?.Value}"`);
     }
 
     if (user.Groups) {
