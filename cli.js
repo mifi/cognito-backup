@@ -230,9 +230,9 @@ async function restoreUsers() {
       }
     } catch (e) {
       if (e instanceof UsernameExistsException) {
-          console.error("Warning: UserName=" + user.Username + " exists and is skipped.");
+        console.error(`Warning: UserName=${user.Username} exists and is skipped.`);
       } else {
-        throw e;  // re-throw the error unchanged
+        throw e;
       }
     }
 
@@ -277,9 +277,9 @@ async function restoreGroups() {
       debug('Restored group', response?.Group.GroupName);
     } catch (e) {
       if (e instanceof GroupExistsException) {
-          console.error("Warning: GroupName=" + group.GroupName + " exists and is skipped.");
+        console.error(`Warning: GroupName=${group.GroupName} exists and is skipped.`);
       } else {
-        throw e;  // re-throw the error unchanged
+        throw e;
       }
     }
   }, { concurrency });
