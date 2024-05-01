@@ -13,7 +13,7 @@ import assert from 'assert';
 import { pipeline as pipelineCb } from 'stream';
 import pMap from 'p-map';
 import {
-  CognitoIdentityProviderClient, ListUserPoolsCommand, AdminListGroupsForUserCommand, ListUsersCommand, ListGroupsCommand, AdminCreateUserCommand, CreateGroupCommand, AdminAddUserToGroupCommand,
+  CognitoIdentityProviderClient, ListUserPoolsCommand, AdminListGroupsForUserCommand, ListUsersCommand, ListGroupsCommand, AdminCreateUserCommand, CreateGroupCommand, AdminAddUserToGroupCommand, GroupExistsException, UsernameExistsException,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { fromIni } from '@aws-sdk/credential-providers';
 
@@ -219,13 +219,21 @@ async function restoreUsers() {
       UserAttributes: attributes,
     };
 
-    const response = await cognitoIsp.send(new AdminCreateUserCommand(params));
-    debug('Restored user', response?.User?.Username);
+    try {
+      const response = await cognitoIsp.send(new AdminCreateUserCommand(params));
+      debug('Restored user', response?.User?.Username);
 
-    if (verbose) {
-      const oldSub = user.Attributes.find((attribute) => attribute.Name === 'sub');
-      const newSub = response.User.Attributes.find((attribute) => attribute.Name === 'sub');
-      console.log(`Restored user - oldSub: "${oldSub?.Value}" newSub: "${newSub?.Value}"`);
+      if (verbose) {
+        const oldSub = user.Attributes.find((attribute) => attribute.Name === 'sub');
+        const newSub = response.User.Attributes.find((attribute) => attribute.Name === 'sub');
+        console.log(`Restored user - oldSub: "${oldSub?.Value}" newSub: "${newSub?.Value}"`);
+      }
+    } catch (e) {
+      if (e instanceof UsernameExistsException) {
+        console.error(`Warning: UserName=${user.Username} exists and is skipped.`);
+      } else {
+        throw e;
+      }
     }
 
     if (user.Groups) {
@@ -264,8 +272,16 @@ async function restoreGroups() {
       RoleArn: group.RoleArn,
     };
 
-    const response = await cognitoIsp.send(new CreateGroupCommand(params));
-    debug('Restored group', response?.Group.GroupName);
+    try {
+      const response = await cognitoIsp.send(new CreateGroupCommand(params));
+      debug('Restored group', response?.Group.GroupName);
+    } catch (e) {
+      if (e instanceof GroupExistsException) {
+        console.error(`Warning: GroupName=${group.GroupName} exists and is skipped.`);
+      } else {
+        throw e;
+      }
+    }
   }, { concurrency });
 }
 
