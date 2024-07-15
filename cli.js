@@ -96,8 +96,6 @@ async function backupUsers(userPoolId, file) {
   const params = { UserPoolId: userPoolId };
 
   async function getUserGroupNames(user) {
-    // This is where our backup jobs are failing (consistently) but there's
-    // not much you can do to make this less request-heavy AFAIK
     const data = await cognitoIsp.send(new AdminListGroupsForUserCommand({
       UserPoolId: userPoolId,
       Username: user.Username,
