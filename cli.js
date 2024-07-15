@@ -40,12 +40,16 @@ const cli = meow(
     --dir Path to export all pools, all users to (defaults to current dir)
     --profile utilize named profile from .aws/credentials file
     --stack-trace Log stack trace upon error
+    --max-attempts The maximum number of times requests that encounter retryable failures should be attempted
     --concurrency More will be faster, too many may cause throttling error`,
   {
     importMeta: import.meta,
     flags: {
       stackTrace: {
         type: 'boolean',
+      },
+      maxAttempts: {
+        type: 'number',
       },
       concurrency: {
         type: 'number',
@@ -57,12 +61,17 @@ const cli = meow(
   },
 );
 
-const { region, concurrency = 1, verbose = false } = cli.flags;
+const {
+  region,
+  concurrency = 1,
+  verbose = false,
+  maxAttempts = 5,
+} = cli.flags;
 
 const config = {
   region,
   retryMode: 'standard',
-  maxAttempts: 5,
+  maxAttempts,
 };
 
 if (cli.flags.profile) {
