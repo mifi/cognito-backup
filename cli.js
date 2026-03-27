@@ -41,6 +41,7 @@ const cli = meow(
     --profile utilize named profile from .aws/credentials file
     --stack-trace Log stack trace upon error
     --max-attempts The maximum number of times requests that encounter retryable failures should be attempted
+    --include-groups Toggles backing up user group memberships to save on API calls where not required
     --concurrency More will be faster, too many may cause throttling error`,
   {
     importMeta: import.meta,
@@ -50,6 +51,9 @@ const cli = meow(
       },
       maxAttempts: {
         type: 'number',
+      },
+      includeGroups: {
+        type: 'boolean',
       },
       concurrency: {
         type: 'number',
@@ -66,6 +70,7 @@ const {
   concurrency = 1,
   verbose = false,
   maxAttempts = 5,
+  includeGroups = true,
 } = cli.flags;
 
 const config = {
@@ -106,6 +111,10 @@ async function backupUsers(userPoolId, file) {
       Username: user.Username,
     }));
 
+    // Sleep for 20ms to avoid hitting the default 50 RPS limit on UserResourceRead
+    // https://docs.aws.amazon.com/cognito/latest/developerguide/quotas.html#category_operations
+    await new Promise((r) => { setTimeout(r, 20); });
+
     return data.Groups.map((group) => group.GroupName);
   }
 
@@ -114,7 +123,10 @@ async function backupUsers(userPoolId, file) {
     const data = await cognitoIsp.send(new ListUsersCommand(params));
 
     const users = await pMap(data.Users, async (user) => {
-      const groupNames = await getUserGroupNames(user);
+      let groupNames;
+      if (includeGroups === true) {
+        groupNames = await getUserGroupNames(user);
+      }
       return { ...user, Groups: groupNames };
     }, { concurrency });
 
